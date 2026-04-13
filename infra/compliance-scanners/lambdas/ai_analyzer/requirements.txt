@@ -1,0 +1,22 @@
+# AI Analyzer Lambda Dependencies
+# Optimized for AWS Lambda Python 3.12 (not 3.9)
+
+# LangChain Core
+langchain-core==0.3.29
+langchain-community==0.3.13
+
+# Vector Store
+langchain-pinecone==0.2.0
+pinecone-client==5.0.1
+
+# Google Generative AI (Gemini)
+langchain-google-genai==2.0.8
+google-generativeai==0.8.3
+langchain-groq
+
+# Required by LangChain
+pydantic==2.10.6
+pydantic-core==2.27.2
+
+# Explicitly pin google-auth to avoid Python 3.9 warnings
+google-auth==2.37.0

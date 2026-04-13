@@ -1,0 +1,388 @@
+service: compliance-scanners
+
+provider:
+  name: aws
+  runtime: python3.9
+  region: ap-south-1
+  environment:
+    FINDINGS_TABLE: Findings
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:PutItem
+        - dynamodb:DeleteItem
+        - dynamodb:DescribeTable
+        - dynamodb:Scan
+      Resource: "*"
+    - Effect: Allow
+      Action:
+        - rds:DescribeDBInstances
+        - rds:DescribeDBClusters
+        - rds:DescribeDBClusterSnapshots
+        - rds:DescribeDBSnapshots
+        - rds:ListTagsForResource
+      Resource: "*"
+ 
+    - Effect: Allow
+      Action:
+        - cloudtrail:DescribeTrails
+        - cloudtrail:GetTrailStatus
+        - cloudtrail:GetEventSelectors
+        - cloudtrail:ListTrails
+      Resource: "*"
+ 
+    - Effect: Allow
+      Action:
+        - apigateway:GET
+      Resource: "*"
+ 
+    - Effect: Allow
+      Action:
+        - wafv2:GetWebACLForResource
+      Resource: "*"
+ 
+ 
+    - Effect: Allow
+      Action:
+        - s3:ListAllMyBuckets
+        - s3:GetBucketAcl
+        - s3:GetBucketPolicy
+        - s3:GetBucketEncryption
+        - s3:GetBucketPublicAccessBlock
+        - s3:GetBucketLocation
+        - s3:GetBucketVersioning
+        - s3:GetBucketLogging
+        - s3:PutObject
+        - s3:DeleteObject
+        - s3:GetEncryptionConfiguration
+      Resource: "*"
+
+    - Effect: Allow
+      Action:
+        - ec2:DescribeInstances
+        - ec2:DescribeSecurityGroups
+      Resource: "*"
+
+    - Effect: Allow
+      Action:
+        - lambda:InvokeFunction
+      Resource: "*"
+
+    - Effect: Allow
+      Action:
+        - iam:ListUsers
+        - iam:ListAccessKeys
+        - iam:GetLoginProfile
+        - iam:ListMFADevices
+        - iam:ListRoles
+        - iam:ListAttachedRolePolicies
+        - iam:ListRolePolicies
+      Resource: "*"
+
+    - Effect: Allow
+      Action:
+        - lambda:ListFunctions
+        - lambda:GetFunction
+        - lambda:GetFunctionConcurrency
+        - lambda:GetPolicy
+        - lambda:ListTags
+      Resource: "*"
+      
+    - Effect: Allow
+      Action:
+        - sts:AssumeRole
+      Resource: "arn:aws:iam::*:role/CrossAccountComplianceRole"
+      
+functions:
+
+  # ═══════════════════════════════════════════════════════════════
+  # AI-POWERED SECURITY ANALYZER - OPTIMIZED FOR SPEED
+  # ═══════════════════════════════════════════════════════════════
+  aiBrain:
+    image:
+      uri: 544446317130.dkr.ecr.ap-south-1.amazonaws.com/compliance-ai-analyzer:v13
+    timeout: 25  # ← Increased from 30s, with 15s LLM timeout = safer
+    memorySize: 1024  # ← Increased from 512MB for faster execution
+    environment:
+      GROQ_API_KEY: ${env:GROQ_API_KEY}
+      GOOGLE_API_KEY: ${env:GOOGLE_API_KEY}
+      PINECONE_API_KEY: ${env:PINECONE_API_KEY}
+      PINECONE_INDEX_NAME: aws-compliance-rules
+
+  # ═══════════════════════════════════════════════════════════════
+  # SECURITY ASSISTANT (NEW — Groq + Pinecone RAG for chat)
+  # ═══════════════════════════════════════════════════════════════
+  securityAssistant:
+    image:
+      uri: 544446317130.dkr.ecr.ap-south-1.amazonaws.com/compliance-security-assistant:latest
+    timeout: 28    # Groq is fast — 30s is plenty
+    memorySize: 512    # Needed for langchain + pinecone initialisation
+    environment:
+      GROQ_API_KEY: ${env:GROQ_API_KEY}
+      GOOGLE_API_KEY: ${env:GOOGLE_API_KEY}
+      PINECONE_API_KEY: ${env:PINECONE_API_KEY}
+      PINECONE_INDEX_NAME: aws-compliance-rules
+    events:
+      - http:
+          path: assistant
+          method: post
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+            allowCredentials: false
+      - http:
+          path: assistant
+          method: options
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+            allowCredentials: false
+  # ═══════════════════════════════════════════════════════════════
+  # SCAN ORCHESTRATOR
+  # ═══════════════════════════════════════════════════════════════
+  scanAll:
+    handler: lambdas/scan_all/app.lambda_handler
+    timeout: 28
+    environment:
+      FINDINGS_TABLE: Findings
+      S3_SCANNER_FUNCTION:         compliance-scanners-dev-s3Scanner
+      EC2_SCANNER_FUNCTION:        compliance-scanners-dev-ec2Scanner
+      IAM_SCANNER_FUNCTION:        compliance-scanners-dev-iamScanner
+      LAMBDA_SCANNER_FUNCTION:     compliance-scanners-dev-lambdaScanner
+      RDS_SCANNER_FUNCTION:        compliance-scanners-dev-rdsScanner
+      CLOUDTRAIL_SCANNER_FUNCTION: compliance-scanners-dev-cloudtrailScanner
+      APIGW_SCANNER_FUNCTION:      compliance-scanners-dev-apigwScanner
+    events:
+      - http:
+          path: scan
+          method: get
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+            allowCredentials: false
+
+  testLambda:
+    handler: handler.hello
+    events:
+      - http:
+          path: test
+          method: get
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+            allowCredentials: false
+
+  # ═══════════════════════════════════════════════════════════════
+  # AI-ENHANCED S3 SCANNER - INCREASED TIMEOUT
+  # ═══════════════════════════════════════════════════════════════
+  s3Scanner:
+    handler: lambdas/s3_check/app.lambda_handler
+    timeout: 60  # ← Increased from 30s to allow AI processing
+    memorySize: 512  # ← Added explicit memory
+    environment:
+      FINDINGS_TABLE: Findings
+      AI_ANALYZER_FUNCTION: compliance-scanners-dev-aiBrain
+    events:
+      - http:
+          path: scan/s3
+          method: get
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+            allowCredentials: false
+
+  # ═══════════════════════════════════════════════════════════════
+  # OTHER SCANNERS (Keep existing)
+  # ═══════════════════════════════════════════════════════════════
+  ec2Scanner:
+    handler: lambdas/ec2_check/app.lambda_handler
+    timeout: 60  # ← Increased from 30s to allow AI processing
+    memorySize: 512
+    environment:
+      FINDINGS_TABLE: Findings
+      AI_ANALYZER_FUNCTION: compliance-scanners-dev-aiBrain
+    events:
+      - http:
+          path: scan/ec2
+          method: get
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+            allowCredentials: false
+
+  iamScanner:
+    handler: lambdas/iam_check/app.lambda_handler
+    timeout: 60  # ← Increased from 30s to allow AI processing
+    memorySize: 512  # ← Added explicit memory
+
+    environment:
+      FINDINGS_TABLE: Findings
+      AI_BRAIN_FUNCTION_NAME: compliance-scanners-dev-aiBrain
+    events:
+      - http:
+          path: scan/iam
+          method: get
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+            allowCredentials: false
+
+  lambdaScanner:
+    handler: lambdas/lambda_check/app.lambda_handler
+    timeout: 60  # ← Increased from 30s to allow AI processing
+    memorySize: 512
+    environment:
+      FINDINGS_TABLE: Findings
+      AI_ANALYZER_FUNCTION: compliance-scanners-dev-aiBrain
+    events:
+      - http:
+          path: scan/lambda
+          method: get
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+            allowCredentials: false
+  rdsScanner:
+    handler: lambdas/rds_check/app.lambda_handler
+    timeout: 60
+    environment:
+      FINDINGS_TABLE: Findings
+      AI_ANALYZER_FUNCTION: compliance-scanners-dev-aiBrain
+    events:
+      - http:
+          path: scan/rds
+          method: get
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+            allowCredentials: false
+ 
+  cloudtrailScanner:
+    handler: lambdas/cloudtrail_check/app.lambda_handler
+    timeout: 60
+    environment:
+      FINDINGS_TABLE: Findings
+      AI_ANALYZER_FUNCTION: compliance-scanners-dev-aiBrain
+    events:
+      - http:
+          path: scan/cloudtrail
+          method: get
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+            allowCredentials: false
+ 
+  apigwScanner:
+    handler: lambdas/apigw_check/app.lambda_handler
+    timeout: 60
+    environment:
+      FINDINGS_TABLE: Findings
+      AI_ANALYZER_FUNCTION: compliance-scanners-dev-aiBrain
+    events:
+      - http:
+          path: scan/apigw
+          method: get
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+            allowCredentials: false
+
+  getFindings:
+    handler: lambdas/get_findings/app.lambda_handler
+    environment:
+      FINDINGS_TABLE: Findings
+      CSV_BUCKET: csv-output-buckett
+    events:
+      - http:
+          path: findings
+          method: get
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+            allowCredentials: false
+      - http:
+          path: refresh
+          method: get
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - X-Amz-Date
+              - Authorization
+              - X-Api-Key
+              - X-Amz-Security-Token
+            allowCredentials: false
+
+resources:
+  Resources:
+    FindingsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: Findings
+        AttributeDefinitions:
+          - AttributeName: findingId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: findingId
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST

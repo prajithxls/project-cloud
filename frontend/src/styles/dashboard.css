@@ -1,0 +1,27 @@
+#dashboard {
+  padding: 20px;
+  font-family: Arial, sans-serif;
+}
+
+.stats-container {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.card {
+  padding: 15px;
+  border-radius: 8px;
+  background: #f2f2f2;
+  font-weight: bold;
+}
+
+.critical { background: #ff6b6b; color: white; }
+.high { background: #ffb703; color: white; }
+.medium { background: #219ebc; color: white; }
+
+.charts {
+  display: flex;
+  gap: 30px;
+  margin-bottom: 30px;
+}
