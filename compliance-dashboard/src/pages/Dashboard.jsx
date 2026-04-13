@@ -9,184 +9,283 @@ export default function Dashboard({ findings, loading, scanning, scannedAccountI
   const navigate = useNavigate();
   const stats = computeStats(findings);
 
-  const statCards = [
-    { cls: "total",    label: "Total Findings", value: stats.total },
-    { cls: "critical", label: "Critical",        value: stats.CRITICAL },
-    { cls: "high",     label: "High",            value: stats.HIGH },
-    { cls: "medium",   label: "Medium",          value: stats.MEDIUM },
-    { cls: "low",      label: "Low",             value: stats.LOW },
+  const statMetrics = [
+    { label: "Total Findings", value: stats.total, color: "var(--accent-cyan)", sub: `${stats.openCount || 0} Open` },
+    { label: "Critical Risk", value: stats.CRITICAL || 0, color: "var(--critical)", sub: "Immediate Action" },
+    { label: "High Risk", value: stats.HIGH || 0, color: "var(--high)", sub: "Urgent Review" },
+    { label: "Medium Risk", value: stats.MEDIUM || 0, color: "var(--medium)", sub: "Plan Fixes" },
+    { label: "Low Risk", value: stats.LOW || 0, color: "var(--low)", sub: "Monitor" },
   ];
 
   return (
-    <div>
-      {/* Page Header — no scan button */}
-      <div className="page-header">
+    <div style={{ 
+      maxWidth: "1600px", 
+      margin: "0 auto",
+      animation: "fadeIn 0.4s ease-out"
+    }}>
+      {/* ── Modern Header / Top Nav Area ── */}
+      <div style={{ 
+        display: "flex",
+        alignItems: "flex-end",
+        justifyContent: "space-between",
+        marginBottom: "24px",
+        paddingBottom: "24px",
+      }}>
         <div>
-          <div className="page-title">Security Dashboard</div>
-          <div className="page-title-sub">
-            Cloud Compliance &amp; Audit Overview · AWS ap-south-1
+          <h1 style={{ 
+            fontFamily: "var(--font-display)",
+            fontSize: "28px",
+            fontWeight: 800,
+            letterSpacing: "-0.5px",
+            color: "var(--text-primary)",
+            marginBottom: "8px",
+            display: "flex",
+            alignItems: "center",
+            gap: "12px"
+          }}>
+            Security Command Center
             {scannedAccountId && (
               <span style={{
-                marginLeft: 12,
                 fontFamily: "var(--font-mono)",
-                fontSize: 11,
+                fontSize: "12px",
+                fontWeight: 600,
                 color: "var(--accent-cyan)",
-                background: "var(--bg-elevated)",
-                border: "1px solid var(--accent-cyan)33",
-                padding: "2px 10px",
+                background: "var(--accent-cyan-dim)",
+                padding: "4px 10px",
                 borderRadius: "20px",
+                border: "1px solid rgba(255, 255, 255, 0.1)"
               }}>
-                Account: {scannedAccountId}
+                {scannedAccountId}
               </span>
             )}
-          </div>
+          </h1>
+          <p style={{ 
+            fontFamily: "var(--font-mono)",
+            fontSize: "12px", 
+            color: "var(--text-muted)",
+            letterSpacing: "0.02em"
+          }}>
+            Real-time compliance posture and threat detection for AWS infrastructure.
+          </p>
         </div>
-        <button className="btn btn-secondary" onClick={() => navigate("/findings")}>
-          View All Findings
-        </button>
+        
+        <div style={{ display: "flex", gap: "12px" }}>
+          <button 
+            className="btn btn-secondary" 
+            onClick={() => navigate("/scan")}
+            style={{ fontSize: "13px", padding: "8px 16px" }}
+          >
+            ⟳ New Scan
+          </button>
+          <button 
+            className="btn btn-primary" 
+            onClick={() => navigate("/findings")}
+            style={{ fontSize: "13px", padding: "8px 20px" }}
+          >
+            View All Findings →
+          </button>
+        </div>
       </div>
 
       {loading ? (
-        <div className="loading-overlay">
-          <div className="spinner" />
-          <div className="loading-text">LOADING DASHBOARD...</div>
+        <div className="loading-overlay" style={{ minHeight: "400px" }}>
+          <div className="spinner" style={{ width: "32px", height: "32px", borderWidth: "3px" }}></div>
+          <p className="loading-text" style={{ fontSize: "12px", marginTop: "16px" }}>ANALYZING INFRASTRUCTURE...</p>
         </div>
       ) : findings.length === 0 ? (
-        /* ── Empty state — no scan run yet ── */
+        /* ── Modern Empty State ── */
         <div style={{
+          background: "var(--bg-surface)",
+          border: "1px dashed var(--border)",
+          borderRadius: "var(--radius-lg)",
+          padding: "80px 40px",
+          textAlign: "center",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          justifyContent: "center",
-          padding: "80px 20px",
-          gap: 16,
-          textAlign: "center",
+          justifyContent: "center"
         }}>
-          <div style={{
-            width: 64,
-            height: 64,
-            borderRadius: "50%",
-            background: "var(--bg-elevated)",
-            border: "1px solid var(--border)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 28,
-          }}>
-            🛡
-          </div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: "var(--text-primary)" }}>
-            No scan results yet
-          </div>
-          <div style={{ fontSize: 13, color: "var(--text-secondary)", maxWidth: 400, lineHeight: 1.6 }}>
-            Go to the <strong style={{ color: "var(--accent-cyan)" }}>Scan</strong> page, enter a target AWS account ID, and run a compliance scan to see findings here.
-          </div>
-          <button className="btn btn-primary" style={{ marginTop: 8 }} onClick={() => navigate("/scan")}>
-            Go to Scan →
+          <div style={{ fontSize: "48px", opacity: 0.2, marginBottom: "20px" }}>◧</div>
+          <h2 style={{ fontSize: "18px", fontWeight: 700, color: "var(--text-primary)", marginBottom: "8px" }}>
+            No Infrastructure Scanned
+          </h2>
+          <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginBottom: "24px", maxWidth: "400px", lineHeight: "1.6" }}>
+            Connect a target AWS account to instantly detect misconfigurations, IAM vulnerabilities, and compliance drifts.
+          </p>
+          <button className="btn btn-primary" onClick={() => navigate("/scan")}>
+            Initialize Scanner
           </button>
         </div>
       ) : (
         <>
-          <div className="stats-grid">
-            {statCards.map((s) => (
-              <div key={s.cls} className={`stat-card ${s.cls}`}>
-                <div className="stat-label">{s.label}</div>
-                <div className="stat-value">{s.value}</div>
-                <div className="stat-trend">
-                  {s.cls === "total"
-                    ? `${stats.openCount} open · ${stats.resolvedCount} resolved`
-                    : s.cls === "critical" || s.cls === "high"
-                    ? "Requires immediate attention"
-                    : "Monitored"}
+          {/* ── Unified Metrics Strip (Replaces separate cards) ── */}
+          <div style={{
+            display: "flex",
+            background: "var(--bg-surface)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-lg)",
+            marginBottom: "24px",
+            overflow: "hidden",
+            boxShadow: "var(--shadow-sm)"
+          }}>
+            {statMetrics.map((stat, idx) => (
+              <div 
+                key={stat.label}
+                style={{
+                  flex: 1,
+                  padding: "20px 24px",
+                  borderRight: idx !== statMetrics.length - 1 ? "1px solid var(--border)" : "none",
+                  position: "relative",
+                  background: "transparent",
+                  transition: "background 0.2s ease"
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg-elevated)"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+              >
+                {/* Subtle top border glow for severity */}
+                <div style={{
+                  position: "absolute", top: 0, left: 0, right: 0, height: "2px",
+                  background: stat.color, opacity: 0.5
+                }} />
+                
+                <div style={{ 
+                  fontFamily: "var(--font-mono)", 
+                  fontSize: "10px", 
+                  color: "var(--text-muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                  marginBottom: "8px"
+                }}>
+                  {stat.label}
+                </div>
+                <div style={{ 
+                  fontFamily: "var(--font-display)", 
+                  fontSize: "32px", 
+                  fontWeight: 800, 
+                  color: stat.color,
+                  lineHeight: 1,
+                  marginBottom: "6px"
+                }}>
+                  {stat.value}
+                </div>
+                <div style={{ 
+                  fontFamily: "var(--font-mono)", 
+                  fontSize: "10px", 
+                  color: "var(--text-secondary)",
+                }}>
+                  {stat.sub}
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="charts-grid">
-            <SeverityDonut stats={stats} />
-            <ScannerBarChart scanners={stats.scanners} />
+          {/* ── Bento Box Grid (Top Row: Charts) ── */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: "24px",
+            marginBottom: "24px"
+          }}>
+            <div style={{ gridColumn: "span 1" }}>
+              <SeverityDonut stats={stats} />
+            </div>
+            <div style={{ gridColumn: "span 1" }}>
+              <ScannerBarChart scanners={stats.byScanner || {}} />
+            </div>
+            <div style={{ gridColumn: "span 1" }}>
+              <ComplianceScore findings={findings} />
+            </div>
           </div>
 
-          <div className="charts-grid">
-            <ComplianceScore findings={findings} />
-
-            <div className="card" style={{ height: "280px", display: "flex", flexDirection: "column" }}>
-              <div className="card-header">
-                <span className="card-title">Recent Critical Findings</span>
-                <button
-                  className="btn btn-ghost"
-                  style={{ fontSize: 11 }}
-                  onClick={() => navigate("/findings")}
-                >
-                  View All →
-                </button>
+          {/* ── Bottom Row: Lists & Feed ── */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "2fr 1fr",
+            gap: "24px",
+            marginBottom: "40px"
+          }}>
+            {/* Left: Sleek Threat Feed */}
+            <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+              <div style={{ 
+                padding: "20px 24px", 
+                borderBottom: "1px solid var(--border)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                background: "var(--bg-elevated)"
+              }}>
+                <h3 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text-primary)" }}>
+                  Priority Threat Feed
+                </h3>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "var(--critical)" }}>
+                  CRITICAL & HIGH ONLY
+                </span>
               </div>
-              <div style={{ flex: 1, overflowY: "auto" }}>
+              
+              <div>
                 {findings
                   .filter((f) => f.severity === "CRITICAL" || f.severity === "HIGH")
-                  .slice(0, 5)
-                  .map((f) => (
+                  .slice(0, 6)
+                  .map((f, idx, arr) => (
                     <div
-                      key={f.findingId}
+                      key={idx}
+                      onClick={() => navigate("/findings")}
                       style={{
                         display: "flex",
                         alignItems: "center",
-                        gap: 10,
-                        padding: "10px 0",
-                        borderBottom: "1px solid var(--border)",
+                        gap: "16px",
+                        padding: "16px 24px",
+                        borderBottom: idx !== arr.length - 1 ? "1px solid var(--border)" : "none",
+                        cursor: "pointer",
+                        transition: "background 0.2s"
                       }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg-hover)"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                     >
-                      <span className={`badge ${f.severity?.toUpperCase()}`} style={{ flexShrink: 0 }}>
+                      <span className={`badge ${f.severity}`} style={{ width: "84px", flexShrink: 0 }}>
                         {f.severity}
                       </span>
-                      <div style={{ overflow: "hidden" }}>
-                        <div style={{
-                          color: "var(--text-primary)",
-                          fontSize: 12,
-                          fontWeight: 500,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}>
+                      
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "4px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                           {f.title}
                         </div>
-                        <div style={{
-                          fontFamily: "var(--font-mono)",
-                          fontSize: 10,
-                          color: "var(--text-muted)",
-                          marginTop: 2,
-                        }}>
-                          {f.resourceType} · {f.scanner}
+                        <div style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "var(--text-muted)", display: "flex", gap: "12px" }}>
+                          <span>{f.scanner}</span>
+                          <span>{f.resourceId?.split("/").pop().split(":").pop() || "Unknown Resource"}</span>
                         </div>
                       </div>
-                      <div style={{
-                        marginLeft: "auto",
-                        fontFamily: "var(--font-mono)",
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: parseFloat(f.riskScore) >= 8 ? "var(--critical)" : "var(--high)",
-                        flexShrink: 0,
-                      }}>
+
+                      <div style={{ fontFamily: "var(--font-mono)", fontSize: "13px", fontWeight: 700, color: f.severity === "CRITICAL" ? "var(--critical)" : "var(--high)" }}>
                         {parseFloat(f.riskScore).toFixed(1)}
                       </div>
                     </div>
                   ))}
+                
                 {findings.filter(f => f.severity === "CRITICAL" || f.severity === "HIGH").length === 0 && (
-                  <div className="empty-state" style={{ padding: "30px" }}>
-                    <div className="empty-state-icon" style={{ fontSize: 24 }}>✓</div>
-                    <div className="empty-state-title" style={{ fontSize: 13 }}>No critical findings</div>
+                  <div style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)" }}>
+                    <div style={{ fontSize: "24px", marginBottom: "8px", opacity: 0.5 }}>✓</div>
+                    <div style={{ fontSize: "12px", fontFamily: "var(--font-mono)" }}>Zero critical threats detected.</div>
                   </div>
                 )}
               </div>
             </div>
-          </div>
 
-          <div className="card" style={{ marginTop: 16 }}>
-            <div className="card-header">
-              <span className="card-title">Compliance Framework Coverage</span>
+            {/* Right: Framework Mapping */}
+            <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+              <div style={{ 
+                padding: "20px 24px", 
+                borderBottom: "1px solid var(--border)",
+                background: "var(--bg-elevated)"
+              }}>
+                <h3 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text-primary)" }}>
+                  Framework Violations
+                </h3>
+              </div>
+              <div style={{ padding: "24px" }}>
+                <FrameworkSummary findings={findings} />
+              </div>
             </div>
-            <FrameworkSummary findings={findings} />
           </div>
         </>
       )}
@@ -194,6 +293,7 @@ export default function Dashboard({ findings, loading, scanning, scannedAccountI
   );
 }
 
+// ── Framework Summary Sub-Component ──
 function FrameworkSummary({ findings }) {
   const frameworkCounts = {};
   for (const f of findings) {
@@ -206,8 +306,8 @@ function FrameworkSummary({ findings }) {
 
   if (!entries.length) {
     return (
-      <div style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)", fontSize: 12 }}>
-        No compliance framework data available
+      <div style={{ textAlign: "center", color: "var(--text-muted)", padding: "20px 0" }}>
+        <div style={{ fontSize: "12px", fontFamily: "var(--font-mono)" }}>No framework data mapped.</div>
       </div>
     );
   }
@@ -215,38 +315,31 @@ function FrameworkSummary({ findings }) {
   const max = entries[0][1];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      {entries.map(([fw, count]) => (
-        <div key={fw} style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <div style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: 11,
-            color: "var(--info)",
-            width: 140,
-            flexShrink: 0,
-          }}>
-            {fw}
+    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+      {entries.slice(0, 6).map(([fw, count]) => {
+        const percentage = (count / max) * 100;
+        return (
+          <div key={fw}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: "11px", color: "var(--text-primary)" }}>
+                {fw}
+              </span>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: "11px", color: "var(--text-muted)" }}>
+                {count}
+              </span>
+            </div>
+            <div style={{ height: "4px", background: "var(--bg-elevated)", borderRadius: "2px", overflow: "hidden" }}>
+              <div style={{
+                height: "100%",
+                width: `${percentage}%`,
+                background: "var(--accent-cyan)",
+                borderRadius: "2px",
+                opacity: 0.8
+              }}></div>
+            </div>
           </div>
-          <div style={{ flex: 1, background: "var(--bg-elevated)", borderRadius: 2, height: 6 }}>
-            <div style={{
-              width: `${(count / max) * 100}%`,
-              height: "100%",
-              background: "var(--info)",
-              borderRadius: 2,
-              transition: "width 0.5s ease",
-            }} />
-          </div>
-          <div style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: 11,
-            color: "var(--text-muted)",
-            width: 50,
-            textAlign: "right",
-          }}>
-            {count} issues
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
