@@ -2,7 +2,7 @@ service: compliance-scanners
 
 provider:
   name: aws
-  runtime: python3.9
+  runtime: python3.12
   region: ap-south-1
   environment:
     FINDINGS_TABLE: Findings
@@ -13,7 +13,12 @@ provider:
         - dynamodb:DeleteItem
         - dynamodb:DescribeTable
         - dynamodb:Scan
+        - dynamodb:Query
+        - dynamodb:UpdateItem
+        - dynamodb:BatchWriteItem
+        - dynamodb:GetItem
       Resource: "*"
+
     - Effect: Allow
       Action:
         - rds:DescribeDBInstances
@@ -22,7 +27,7 @@ provider:
         - rds:DescribeDBSnapshots
         - rds:ListTagsForResource
       Resource: "*"
- 
+
     - Effect: Allow
       Action:
         - cloudtrail:DescribeTrails
@@ -30,18 +35,17 @@ provider:
         - cloudtrail:GetEventSelectors
         - cloudtrail:ListTrails
       Resource: "*"
- 
+
     - Effect: Allow
       Action:
         - apigateway:GET
       Resource: "*"
- 
+
     - Effect: Allow
       Action:
         - wafv2:GetWebACLForResource
       Resource: "*"
- 
- 
+
     - Effect: Allow
       Action:
         - s3:ListAllMyBuckets
@@ -87,22 +91,22 @@ provider:
         - lambda:GetPolicy
         - lambda:ListTags
       Resource: "*"
-      
+
     - Effect: Allow
       Action:
         - sts:AssumeRole
       Resource: "arn:aws:iam::*:role/CrossAccountComplianceRole"
-      
+
 functions:
 
   # ═══════════════════════════════════════════════════════════════
-  # AI-POWERED SECURITY ANALYZER - OPTIMIZED FOR SPEED
+  # AI-POWERED SECURITY ANALYZER
   # ═══════════════════════════════════════════════════════════════
   aiBrain:
     image:
       uri: 544446317130.dkr.ecr.ap-south-1.amazonaws.com/compliance-ai-analyzer:v13
-    timeout: 25  # ← Increased from 30s, with 15s LLM timeout = safer
-    memorySize: 1024  # ← Increased from 512MB for faster execution
+    timeout: 60
+    memorySize: 1024
     environment:
       GROQ_API_KEY: ${env:GROQ_API_KEY}
       GOOGLE_API_KEY: ${env:GOOGLE_API_KEY}
@@ -110,13 +114,13 @@ functions:
       PINECONE_INDEX_NAME: aws-compliance-rules
 
   # ═══════════════════════════════════════════════════════════════
-  # SECURITY ASSISTANT (NEW — Groq + Pinecone RAG for chat)
+  # SECURITY ASSISTANT (Groq + Pinecone RAG chat)
   # ═══════════════════════════════════════════════════════════════
   securityAssistant:
     image:
       uri: 544446317130.dkr.ecr.ap-south-1.amazonaws.com/compliance-security-assistant:latest
-    timeout: 28    # Groq is fast — 30s is plenty
-    memorySize: 512    # Needed for langchain + pinecone initialisation
+    timeout: 50
+    memorySize: 512
     environment:
       GROQ_API_KEY: ${env:GROQ_API_KEY}
       GOOGLE_API_KEY: ${env:GOOGLE_API_KEY}
@@ -128,31 +132,46 @@ functions:
           method: post
           cors:
             origin: '*'
-            headers:
-              - Content-Type
-              - X-Amz-Date
-              - Authorization
-              - X-Api-Key
-              - X-Amz-Security-Token
+            headers: [Content-Type, X-Amz-Date, Authorization, X-Api-Key, X-Amz-Security-Token]
             allowCredentials: false
       - http:
           path: assistant
           method: options
           cors:
             origin: '*'
-            headers:
-              - Content-Type
-              - X-Amz-Date
-              - Authorization
-              - X-Api-Key
-              - X-Amz-Security-Token
+            headers: [Content-Type, X-Amz-Date, Authorization, X-Api-Key, X-Amz-Security-Token]
             allowCredentials: false
+
+  # ═══════════════════════════════════════════════════════════════
+  # MANUAL STATUS OVERRIDE — PATCH /findings/{findingId}/status
+  # ═══════════════════════════════════════════════════════════════
+  updateStatus:
+    handler: lambdas/update_status/app.lambda_handler
+    timeout: 10
+    environment:
+      FINDINGS_TABLE: Findings
+    events:
+      - http:
+          path: findings/{findingId}/status
+          method: patch
+          cors:
+            origin: '*'
+            headers: [Content-Type, X-Amz-Date, Authorization, X-Api-Key, X-Amz-Security-Token]
+            allowCredentials: false
+      - http:
+          path: findings/{findingId}/status
+          method: options
+          cors:
+            origin: '*'
+            headers: [Content-Type, X-Amz-Date, Authorization, X-Api-Key, X-Amz-Security-Token]
+            allowCredentials: false
+
   # ═══════════════════════════════════════════════════════════════
   # SCAN ORCHESTRATOR
   # ═══════════════════════════════════════════════════════════════
   scanAll:
     handler: lambdas/scan_all/app.lambda_handler
-    timeout: 28
+    timeout: 60
     environment:
       FINDINGS_TABLE: Findings
       S3_SCANNER_FUNCTION:         compliance-scanners-dev-s3Scanner
@@ -168,12 +187,7 @@ functions:
           method: get
           cors:
             origin: '*'
-            headers:
-              - Content-Type
-              - X-Amz-Date
-              - Authorization
-              - X-Api-Key
-              - X-Amz-Security-Token
+            headers: [Content-Type, X-Amz-Date, Authorization, X-Api-Key, X-Amz-Security-Token]
             allowCredentials: false
 
   testLambda:
@@ -184,21 +198,13 @@ functions:
           method: get
           cors:
             origin: '*'
-            headers:
-              - Content-Type
-              - X-Amz-Date
-              - Authorization
-              - X-Api-Key
-              - X-Amz-Security-Token
+            headers: [Content-Type, X-Amz-Date, Authorization, X-Api-Key, X-Amz-Security-Token]
             allowCredentials: false
 
-  # ═══════════════════════════════════════════════════════════════
-  # AI-ENHANCED S3 SCANNER - INCREASED TIMEOUT
-  # ═══════════════════════════════════════════════════════════════
   s3Scanner:
     handler: lambdas/s3_check/app.lambda_handler
-    timeout: 60  # ← Increased from 30s to allow AI processing
-    memorySize: 512  # ← Added explicit memory
+    timeout: 60
+    memorySize: 512
     environment:
       FINDINGS_TABLE: Findings
       AI_ANALYZER_FUNCTION: compliance-scanners-dev-aiBrain
@@ -208,20 +214,12 @@ functions:
           method: get
           cors:
             origin: '*'
-            headers:
-              - Content-Type
-              - X-Amz-Date
-              - Authorization
-              - X-Api-Key
-              - X-Amz-Security-Token
+            headers: [Content-Type, X-Amz-Date, Authorization, X-Api-Key, X-Amz-Security-Token]
             allowCredentials: false
 
-  # ═══════════════════════════════════════════════════════════════
-  # OTHER SCANNERS (Keep existing)
-  # ═══════════════════════════════════════════════════════════════
   ec2Scanner:
     handler: lambdas/ec2_check/app.lambda_handler
-    timeout: 60  # ← Increased from 30s to allow AI processing
+    timeout: 60
     memorySize: 512
     environment:
       FINDINGS_TABLE: Findings
@@ -232,19 +230,13 @@ functions:
           method: get
           cors:
             origin: '*'
-            headers:
-              - Content-Type
-              - X-Amz-Date
-              - Authorization
-              - X-Api-Key
-              - X-Amz-Security-Token
+            headers: [Content-Type, X-Amz-Date, Authorization, X-Api-Key, X-Amz-Security-Token]
             allowCredentials: false
 
   iamScanner:
     handler: lambdas/iam_check/app.lambda_handler
-    timeout: 60  # ← Increased from 30s to allow AI processing
-    memorySize: 512  # ← Added explicit memory
-
+    timeout: 60
+    memorySize: 512
     environment:
       FINDINGS_TABLE: Findings
       AI_BRAIN_FUNCTION_NAME: compliance-scanners-dev-aiBrain
@@ -254,17 +246,12 @@ functions:
           method: get
           cors:
             origin: '*'
-            headers:
-              - Content-Type
-              - X-Amz-Date
-              - Authorization
-              - X-Api-Key
-              - X-Amz-Security-Token
+            headers: [Content-Type, X-Amz-Date, Authorization, X-Api-Key, X-Amz-Security-Token]
             allowCredentials: false
 
   lambdaScanner:
     handler: lambdas/lambda_check/app.lambda_handler
-    timeout: 60  # ← Increased from 30s to allow AI processing
+    timeout: 60
     memorySize: 512
     environment:
       FINDINGS_TABLE: Findings
@@ -275,16 +262,13 @@ functions:
           method: get
           cors:
             origin: '*'
-            headers:
-              - Content-Type
-              - X-Amz-Date
-              - Authorization
-              - X-Api-Key
-              - X-Amz-Security-Token
+            headers: [Content-Type, X-Amz-Date, Authorization, X-Api-Key, X-Amz-Security-Token]
             allowCredentials: false
+
   rdsScanner:
     handler: lambdas/rds_check/app.lambda_handler
     timeout: 60
+    memorySize: 512
     environment:
       FINDINGS_TABLE: Findings
       AI_ANALYZER_FUNCTION: compliance-scanners-dev-aiBrain
@@ -294,17 +278,13 @@ functions:
           method: get
           cors:
             origin: '*'
-            headers:
-              - Content-Type
-              - X-Amz-Date
-              - Authorization
-              - X-Api-Key
-              - X-Amz-Security-Token
+            headers: [Content-Type, X-Amz-Date, Authorization, X-Api-Key, X-Amz-Security-Token]
             allowCredentials: false
- 
+
   cloudtrailScanner:
     handler: lambdas/cloudtrail_check/app.lambda_handler
     timeout: 60
+    memorySize: 512
     environment:
       FINDINGS_TABLE: Findings
       AI_ANALYZER_FUNCTION: compliance-scanners-dev-aiBrain
@@ -314,17 +294,13 @@ functions:
           method: get
           cors:
             origin: '*'
-            headers:
-              - Content-Type
-              - X-Amz-Date
-              - Authorization
-              - X-Api-Key
-              - X-Amz-Security-Token
+            headers: [Content-Type, X-Amz-Date, Authorization, X-Api-Key, X-Amz-Security-Token]
             allowCredentials: false
- 
+
   apigwScanner:
     handler: lambdas/apigw_check/app.lambda_handler
     timeout: 60
+    memorySize: 512
     environment:
       FINDINGS_TABLE: Findings
       AI_ANALYZER_FUNCTION: compliance-scanners-dev-aiBrain
@@ -334,12 +310,7 @@ functions:
           method: get
           cors:
             origin: '*'
-            headers:
-              - Content-Type
-              - X-Amz-Date
-              - Authorization
-              - X-Api-Key
-              - X-Amz-Security-Token
+            headers: [Content-Type, X-Amz-Date, Authorization, X-Api-Key, X-Amz-Security-Token]
             allowCredentials: false
 
   getFindings:
@@ -353,24 +324,14 @@ functions:
           method: get
           cors:
             origin: '*'
-            headers:
-              - Content-Type
-              - X-Amz-Date
-              - Authorization
-              - X-Api-Key
-              - X-Amz-Security-Token
+            headers: [Content-Type, X-Amz-Date, Authorization, X-Api-Key, X-Amz-Security-Token]
             allowCredentials: false
       - http:
           path: refresh
           method: get
           cors:
             origin: '*'
-            headers:
-              - Content-Type
-              - X-Amz-Date
-              - Authorization
-              - X-Api-Key
-              - X-Amz-Security-Token
+            headers: [Content-Type, X-Amz-Date, Authorization, X-Api-Key, X-Amz-Security-Token]
             allowCredentials: false
 
 resources:
@@ -382,7 +343,22 @@ resources:
         AttributeDefinitions:
           - AttributeName: findingId
             AttributeType: S
+          # ── GSI attributes ─────────────────────────────────────
+          - AttributeName: accountId
+            AttributeType: S
+          - AttributeName: status
+            AttributeType: S
         KeySchema:
           - AttributeName: findingId
             KeyType: HASH
         BillingMode: PAY_PER_REQUEST
+        # ── GSI: query all findings for an account by status ─────
+        GlobalSecondaryIndexes:
+          - IndexName: accountId-status-index
+            KeySchema:
+              - AttributeName: accountId
+                KeyType: HASH
+              - AttributeName: status
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL

@@ -190,7 +190,7 @@ export default function Dashboard({ findings, loading, scanning, scannedAccountI
               <SeverityDonut stats={stats} />
             </div>
             <div style={{ gridColumn: "span 1" }}>
-              <ScannerBarChart scanners={stats.byScanner || {}} />
+              <ScannerBarChart scanners={stats.scanners} />
             </div>
             <div style={{ gridColumn: "span 1" }}>
               <ComplianceScore findings={findings} />

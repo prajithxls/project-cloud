@@ -1,10 +1,36 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useApp } from "../App";
 import { useNavigate } from "react-router-dom";
 
 export default function HistoryPage() {
-  const { scanHistory } = useApp();
+  // 1. Pull in your setter function and userId from App context
+  const { scanHistory, setScanHistory, userId } = useApp();
   const navigate = useNavigate();
+  
+  // 2. Add a loading state so it doesn't flash the empty screen
+  const [isLoading, setIsLoading] = useState(true);
+
+  // 3. THE FIX: Fetch from DynamoDB when the page loads!
+  useEffect(() => {
+    // If there's no user, stop loading
+    if (!userId) {
+      setIsLoading(false);
+      return; 
+    }
+
+    // Replace this URL with your actual API Gateway URL!
+    fetch(`https://4xhy1jajvb.execute-api.ap-south-1.amazonaws.com/dev/history?userId=${userId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        // Save the DynamoDB data into your React global state
+        if (setScanHistory) setScanHistory(data);
+        setIsLoading(false);
+      })
+      .catch((err) => {
+        console.error("Error fetching history:", err);
+        setIsLoading(false);
+      });
+  }, [userId, setScanHistory]);
 
   return (
     <div>
@@ -22,7 +48,12 @@ export default function HistoryPage() {
       </div>
 
       <div className="card">
-        {(!scanHistory || scanHistory.length === 0) ? (
+        {/* 4. Show a loading message while waiting for the database */}
+        {isLoading ? (
+          <div style={{ padding: "60px 20px", textAlign: "center", color: "var(--text-muted)" }}>
+            Loading scan history...
+          </div>
+        ) : (!scanHistory || scanHistory.length === 0) ? (
           <div style={{
             display: "flex", flexDirection: "column", alignItems: "center",
             padding: "60px 20px", textAlign: "center",
@@ -67,12 +98,11 @@ export default function HistoryPage() {
                     </td>
                     
                     {/* Status Column */}
-                    {/* Status Column */}
                     <td style={{ padding: "16px" }}>
                       {record.status === "Failed" ? (
                         <span style={{
                           display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
-                          padding: "4px 10px", borderRadius: "20px", minWidth: "85px", /* 👈 Forces equal size */
+                          padding: "4px 10px", borderRadius: "20px", minWidth: "85px",
                           background: "var(--critical-dim)", border: "1px solid rgba(239, 68, 68, 0.3)",
                           fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--critical)"
                         }}>
@@ -81,7 +111,7 @@ export default function HistoryPage() {
                       ) : (
                         <span style={{
                           display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
-                          padding: "4px 10px", borderRadius: "20px", minWidth: "85px", /* 👈 Forces equal size */
+                          padding: "4px 10px", borderRadius: "20px", minWidth: "85px",
                           background: "var(--bg-elevated)", border: "1px solid var(--low)33",
                           fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--low)"
                         }}>

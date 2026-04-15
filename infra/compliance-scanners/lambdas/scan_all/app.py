@@ -27,16 +27,25 @@ FINDINGS_TABLE = os.environ.get("FINDINGS_TABLE", "Findings")
 def purge_old_findings(account_id):
     table = dynamodb.Table(FINDINGS_TABLE)
     try:
-        response = table.query(KeyConditionExpression=Key("accountId").eq(account_id))
-        items    = response.get("Items", [])
+        # 1. Use the GSI we created to quickly find the account's items
+        response = table.query(
+            IndexName="accountId-status-index", 
+            KeyConditionExpression=Key("accountId").eq(account_id)
+        )
+        items = response.get("Items", [])
+        
         if items:
             with table.batch_writer() as batch:
                 for item in items:
-                    batch.delete_item(Key={"accountId": item["accountId"], "findingId": item["findingId"]})
+                    # 2. Delete the item using the base table's exact primary key
+                    batch.delete_item(
+                        Key={
+                            "findingId": item["findingId"]
+                        }
+                    )
             print(f"Purged {len(items)} old findings for {account_id}")
     except Exception as e:
         print(f"Purge error: {e}")
-
 
 def invoke_scanner(name, fn, target_account):
     try:
@@ -59,6 +68,7 @@ def lambda_handler(event, context):
         return {"statusCode": 200, "headers": CORS_HEADERS, "body": ""}
 
     query_params   = event.get("queryStringParameters") or {}
+    user_id        = query_params.get("userId", "UNKNOWN")
     own_account    = context.invoked_function_arn.split(":")[4]
     target_account = query_params.get("accountId", "").strip()
     scanners_param = query_params.get("scanners", "").strip()

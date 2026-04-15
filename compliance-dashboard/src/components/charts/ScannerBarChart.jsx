@@ -12,7 +12,7 @@ import { SCANNER_COLORS } from "../../utils/helpers";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 
-export default function ScannerBarChart({ scanners }) {
+export default function ScannerBarChart({ scanners = {} }) {
   const labels = Object.keys(scanners);
   const values = Object.values(scanners);
 

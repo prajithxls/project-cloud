@@ -13,6 +13,7 @@ pinecone-client==5.0.1
 langchain-google-genai==2.0.8
 google-generativeai==0.8.3
 langchain-groq
+langchain-openai
 
 # Required by LangChain
 pydantic==2.10.6

@@ -3,6 +3,7 @@ import os
 import time
 from langchain_pinecone import PineconeVectorStore
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_openai import ChatOpenAI
 from langchain_groq import ChatGroq
 from langchain_core.prompts import PromptTemplate
 from pydantic import BaseModel, Field
@@ -53,11 +54,13 @@ def lambda_handler(event, context):
 
         print("Initializing Grok...")
         # 1. Initialize the Base LLM
-        llm = ChatGroq (
-            model="llama-3.3-70b-versatile",
-            api_key=os.environ["GROQ_API_KEY"],
-            temperature=0.0
-        )
+        llm = ChatGroq(
+    model="llama-3.3-70b-versatile",
+    api_key=os.environ["GROQ_API_KEY"],
+    temperature=0.2,      # Slightly creative for natural conversation
+    max_tokens=1500,
+)
+
         
         # 2. FORCE the Native API Structured Output
         # 2. FORCE the Native API Structured Output into JSON Mode
