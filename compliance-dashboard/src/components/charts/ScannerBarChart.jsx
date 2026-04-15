@@ -71,7 +71,7 @@ export default function ScannerBarChart({ scanners = {} }) {
   };
 
   return (
-    <div className="card" style={{ height: "280px" }}>
+   <div className="card" style={{ height: "100%", minHeight: "280px", display: "flex", flexDirection: "column" }}>
       <div className="card-header">
         <span className="card-title">Findings by Scanner</span>
         <span style={{

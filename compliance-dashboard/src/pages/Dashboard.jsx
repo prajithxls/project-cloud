@@ -180,22 +180,25 @@ export default function Dashboard({ findings, loading, scanning, scannedAccountI
           </div>
 
           {/* ── Bento Box Grid (Top Row: Charts) ── */}
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: "24px",
-            marginBottom: "24px"
-          }}>
-            <div style={{ gridColumn: "span 1" }}>
-              <SeverityDonut stats={stats} />
-            </div>
-            <div style={{ gridColumn: "span 1" }}>
-              <ScannerBarChart scanners={stats.scanners} />
-            </div>
-            <div style={{ gridColumn: "span 1" }}>
-              <ComplianceScore findings={findings} />
-            </div>
-          </div>
+<div style={{
+  display: "grid",
+  gridTemplateColumns: "repeat(3, 1fr)",
+  gap: "24px",
+  marginBottom: "24px",
+  alignItems: "stretch" // Ensure the grid columns stretch
+}}>
+  {/* Add height: "100%" to these wrapper divs */}
+  <div style={{ gridColumn: "span 1", height: "100%" }}>
+    <SeverityDonut stats={stats} />
+  </div>
+  <div style={{ gridColumn: "span 1", height: "100%" }}>
+    <ScannerBarChart scanners={stats.scanners} />
+  </div>
+  <div style={{ gridColumn: "span 1", height: "100%" }}>
+    <ComplianceScore findings={findings} />
+  </div>
+</div>
+            
 
           {/* ── Bottom Row: Lists & Feed ── */}
           <div style={{

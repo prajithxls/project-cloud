@@ -50,6 +50,7 @@ export default function App() {
 
   const { history: scanHistory, addScanRecord, clearHistory } = useScanHistory(user?.userId);
   const stats = computeStats(findings);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const handleScan = (accountId, scanners) => {
     if (!accountId || accountId.length !== 12) {
@@ -84,7 +85,7 @@ export default function App() {
       findings, loading, stats, addToast,
       scannedAccountId, scanHistory, addScanRecord, user,
     }}>
-      <div className="app-shell">
+      <div className={`app-shell ${!isSidebarOpen ? 'collapsed' : ''}`}>
         <Topbar
           scanning={scanning}
           lastUpdated={lastUpdated}
@@ -92,8 +93,13 @@ export default function App() {
           onSignOut={handleSignOut}
           theme={theme}
           setTheme={setTheme}
+          isSidebarOpen={isSidebarOpen}
         />
-        <Sidebar criticalCount={stats.CRITICAL} />
+        <Sidebar 
+        criticalCount={stats.CRITICAL} 
+        isOpen={isSidebarOpen} 
+        toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} 
+      />
 
         <main className="main-content">
           {error && (

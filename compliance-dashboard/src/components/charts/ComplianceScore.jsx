@@ -35,10 +35,7 @@ export default function ComplianceScore({ findings }) {
   const dashOffset = circumference - (safeScore / 100) * circumference;
 
   return (
-    <div
-      className="card"
-      style={{ height: "280px", display: "flex", flexDirection: "column" }}
-    >
+ <div className="card" style={{ height: "100%", minHeight: "280px", display: "flex", flexDirection: "column" }}>
       <div className="card-header">
         <span className="card-title">Compliance Score</span>
         <span

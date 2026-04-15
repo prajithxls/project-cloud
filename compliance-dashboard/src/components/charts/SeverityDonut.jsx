@@ -106,16 +106,20 @@ export default function SeverityDonut({ stats }) {
 
   return (
     <div 
-      className="card" 
-      style={{
-        background: "var(--bg-surface)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius-lg)",
-        padding: "24px",
-        position: "relative",
-        overflow: "hidden",
-        transition: "all 0.3s ease"
-      }}
+  className="card" 
+  style={{
+    background: "var(--bg-surface)",
+    border: "1px solid var(--border)",
+    borderRadius: "var(--radius-lg)",
+    padding: "24px",
+    position: "relative",
+    overflow: "hidden",
+    transition: "all 0.3s ease",
+    height: "100%", /* 🚨 ADDED THIS */
+    minHeight: "280px", /* 🚨 ADDED THIS */
+    display: "flex", /* 🚨 ADDED THIS */
+    flexDirection: "column" /* 🚨 ADDED THIS */
+  }}
       onMouseEnter={(e) => {
         e.currentTarget.style.borderColor = "var(--border-bright)";
         e.currentTarget.style.boxShadow = "var(--shadow-sm)";
@@ -179,11 +183,8 @@ export default function SeverityDonut({ stats }) {
       </div>
 
       {/* Chart Content */}
-      <div style={{ 
-        height: "280px", 
-        position: "relative",
-        zIndex: 1
-      }}>
+     {/* Chart Content */}
+<div style={{ flex: 1, position: "relative", zIndex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
         {total === 0 ? (
           <div style={{
             display: "flex",

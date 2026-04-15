@@ -45,11 +45,20 @@
   --shadow-lg: 0 8px 32px rgba(0,0,0,0.9);
   
   --shadow-glow-cyan: 0 0 20px rgba(255, 255, 255, 0.15);
-
-  --sidebar-width: 240px;
+/* 🚨 UPDATE THESE SIDEBAR VARIABLES 🚨 */
+  --sidebar-expanded: 240px;
+  --sidebar-collapsed: 72px;
+  --sidebar-width: var(--sidebar-expanded); /* Defaults to expanded */
   --topbar-height: 60px;
 }
-
+.app-shell.collapsed {
+  --sidebar-width: var(--sidebar-collapsed);
+}
+.sidebar, .main-content, .topbar-logo {
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
+              margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow-x: hidden; /* Prevents text overflow during animation */
+}
 body, 
 .card, 
 .topbar, 
@@ -955,3 +964,21 @@ td.primary { color: var(--text-primary); font-weight: 500; }
 .scan-log-entry .ok { color: var(--low); }
 .scan-log-entry .warn { color: var(--high); }
 .scan-log-entry .info { color: var(--accent-cyan); }
+/* ── ADD THIS TO THE VERY BOTTOM OF global.css ── */
+
+.app-shell.collapsed .sidebar {
+  width: 72px !important;
+}
+
+.app-shell.collapsed .main-content {
+  margin-left: 72px !important;
+}
+
+.app-shell.collapsed .topbar-logo {
+  width: 72px !important;
+}
+
+/* Optional: Hides the "CloudGuard" text smoothly when collapsing */
+.app-shell.collapsed .topbar-logo-text {
+  display: none;
+}
