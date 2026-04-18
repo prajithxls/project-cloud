@@ -38,7 +38,7 @@ def get_client(service, target_account, own_account):
     )
 
 
-def call_ai_for_violation(resource_id, violation_type, violation_data, scan_account):
+def call_ai_for_violation(resource_id, violation_type, violation_data, scan_account, org_id):
     """
     Call AI analyzer for a specific IAM violation.
     """
@@ -50,7 +50,8 @@ def call_ai_for_violation(resource_id, violation_type, violation_data, scan_acco
             **violation_data
         },
         "scanner":       SCANNER,
-        "account_id":    scan_account
+        "account_id":    scan_account,
+        "orgId":         org_id
     }
     
     try:
@@ -92,6 +93,7 @@ def lambda_handler(event, context):
 
     own_account    = context.invoked_function_arn.split(":")[4]
     target_account = event.get("accountId", "").strip()
+    org_id = event.get("orgId", "").strip()
     scan_account   = target_account if target_account and target_account != own_account else own_account
 
     print(f"IAM Scanner — scanning account: {scan_account}")
@@ -249,7 +251,7 @@ def lambda_handler(event, context):
                     
                     print(f"     [{idx}/{len(violations)}] Analyzing {violation_type}...")
                     
-                    ai_result = call_ai_for_violation(user_arn, violation_type, violation_data, scan_account)
+                    ai_result = call_ai_for_violation(user_arn, violation_type, violation_data, scan_account, org_id)
                     
                     finding_id = f"{scan_account}-{SCANNER}-{username}-{violation_type}"
                     table.put_item(Item={

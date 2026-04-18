@@ -8,7 +8,7 @@ WORKDIR ${LAMBDA_TASK_ROOT}
 COPY requirements.txt .
 
 # Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt --upgrade
+RUN pip install --default-timeout=1000 --no-cache-dir -r requirements.txt --upgrade
 
 # Copy application code
 COPY app.py .

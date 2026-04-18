@@ -6,6 +6,7 @@ const navItems = [
   { to: "/findings", label: "Findings",  icon: "⚑" },
   { to: "/scan",    label: "Run Scan",   icon: "⟳" },
   { to: "/reports", label: "Reports",    icon: "↓" },
+  { to: "/org",     label: "Organisation", icon: "X" },
   { to: "/history", label: "My History", icon: "◴" },
 ];
 

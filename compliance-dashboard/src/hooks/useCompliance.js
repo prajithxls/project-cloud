@@ -47,7 +47,7 @@ export function useScan(onSuccess) {
     setScanLog(prev => [...prev, { time, msg, type }]);
   };
 
-  const triggerScan = useCallback(async (accountId, scanners, userId = []) => {
+  const triggerScan = useCallback(async (accountId, scanners, orgId) => {
     if (!accountId || accountId.length !== 12) {
       throw new Error("A valid 12-digit target account ID is required.");
     }
@@ -66,7 +66,7 @@ export function useScan(onSuccess) {
       log("Connecting to scan orchestrator...", "info");
       
       // Pass the selected scanners array to the API
-      await runScan(accountId, scanners, userId);
+      await runScan(accountId, scanners, orgId);
       
       log(`Scan dispatched — ${scanners.length} scanner(s) running in parallel...`, "ok");
 

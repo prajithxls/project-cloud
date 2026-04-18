@@ -9,6 +9,7 @@ import SecurityAssistant from "./components/ui/SecurityAssistant";
 import ChatButton      from "./components/ui/ChatButton";
 
 import Dashboard    from "./pages/Dashboard";
+import OrgPage from "./pages/OrgPage";
 import FindingsPage from "./pages/FindingsPage";
 import ScanPage     from "./pages/ScanPage";
 import ReportsPage  from "./pages/ReportsPage";
@@ -23,6 +24,17 @@ export const useApp = () => useContext(AppContext);
 
 export default function App() {
   const [user, setUser] = useState(() => getCurrentUser());
+  const [orgId, setOrgId] = useState(null);
+
+  const API = import.meta.env.VITE_API_BASE || "https://4xhy1jajvb.execute-api.ap-south-1.amazonaws.com/dev";
+
+  useEffect(() => {
+    if (!user?.userId) return;
+    fetch(`${API}/orgs/me?userId=${user.userId}`)
+      .then(r => r.json())
+      .then(d => { if (d.orgId) setOrgId(d.orgId); })
+      .catch(console.error);
+  }, [user?.userId]);
 
   const [theme, setTheme] = useState(() => localStorage.getItem("csc_theme") || "dark");
   useEffect(() => {
@@ -59,8 +71,8 @@ export default function App() {
     }
     clearFindings();
     
-    // Pass the selected scanners array into the triggerScan function
-    triggerScan(accountId, scanners).catch(() =>
+    // Pass the selected scanners array and orgId into the triggerScan function
+    triggerScan(accountId, scanners, orgId).catch(() =>
       addToast("Scan failed. Check API connection.", "error")
     );
   };
@@ -84,6 +96,7 @@ export default function App() {
     <AppContext.Provider value={{
       findings, loading, stats, addToast,
       scannedAccountId, scanHistory, addScanRecord, user,
+      orgId, setOrgId
     }}>
       <div className={`app-shell ${!isSidebarOpen ? 'collapsed' : ''}`}>
         <Topbar
@@ -150,6 +163,7 @@ export default function App() {
                 scannedAccountId={scannedAccountId}
               />
             } />
+            <Route path="/org" element={<OrgPage />} />
             <Route path="/history"  element={<HistoryPage />} />
           </Routes>
         </main>
@@ -168,6 +182,7 @@ export default function App() {
           findings={findings}
           scannedAccountId={scannedAccountId}
           isOpen={chatOpen}
+          orgId={orgId}
           onClose={() => setChatOpen(false)}
         />
       </div>

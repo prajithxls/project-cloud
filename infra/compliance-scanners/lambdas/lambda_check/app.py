@@ -37,7 +37,7 @@ def get_client(service, target_account, own_account, region_name='us-east-1'):
         aws_session_token=creds["SessionToken"]
     )
 
-def call_ai_for_violation(resource_id, violation_type, violation_data, scan_account):
+def call_ai_for_violation(resource_id, violation_type, violation_data, scan_account, org_id):
     """
     Call AI analyzer for a specific Lambda violation.
     """
@@ -49,7 +49,8 @@ def call_ai_for_violation(resource_id, violation_type, violation_data, scan_acco
             **violation_data
         },
         "scanner":       SCANNER,
-        "account_id":    scan_account
+        "account_id":    scan_account,
+        "orgId":         org_id
     }
     
     try:
@@ -89,6 +90,7 @@ def lambda_handler(event, context):
     own_account    = context.invoked_function_arn.split(":")[4]
     aws_region     = context.invoked_function_arn.split(":")[3]
     target_account = event.get("accountId", "").strip()
+    org_id = event.get("orgId", "").strip()
     scan_account   = target_account if target_account and target_account != own_account else own_account
 
     print(f"Lambda Scanner — scanning account: {scan_account} in {aws_region}")
@@ -240,7 +242,7 @@ def lambda_handler(event, context):
                     
                     print(f"     [{idx}/{len(violations)}] Analyzing {violation_type}...")
                     
-                    ai_result = call_ai_for_violation(func_arn, violation_type, violation_data, scan_account)
+                    ai_result = call_ai_for_violation(func_arn, violation_type, violation_data, scan_account, org_id)
                     
                     finding_id = f"{scan_account}-{SCANNER}-{name}-{violation_type}"
                     table.put_item(Item={

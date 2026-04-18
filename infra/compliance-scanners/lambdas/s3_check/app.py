@@ -35,7 +35,7 @@ def get_client(service, target_account, own_account):
         raise Exception(f"Failed to assume role in {target_account}: {str(e)}")
 
 
-def call_ai_for_violation(resource_id, violation_type, violation_data, scan_account):
+def call_ai_for_violation(resource_id, violation_type, violation_data, scan_account, org_id):
     """
     Call AI analyzer for a specific violation.
     
@@ -56,7 +56,8 @@ def call_ai_for_violation(resource_id, violation_type, violation_data, scan_acco
             **violation_data
         },
         "scanner": scanner,
-        "account_id": scan_account
+        "account_id": scan_account,
+        "orgId": org_id
     }
     
     try:
@@ -97,6 +98,7 @@ def lambda_handler(event, context):
 
     own_account = context.invoked_function_arn.split(":")[4]
     target_account = event.get("accountId", "").strip()
+    org_id = event.get("orgId", "").strip()
     scan_account = target_account if target_account and target_account != own_account else own_account
 
     print(f"S3 Scanner — scanning account: {scan_account}")
@@ -358,7 +360,7 @@ def lambda_handler(event, context):
                     print(f"     [{idx}/{len(violations)}] Analyzing {violation_type}...")
                     
                     # Call AI for this specific violation
-                    ai_result = call_ai_for_violation(resource_arn, violation_type, violation_data, scan_account)
+                    ai_result = call_ai_for_violation(resource_arn, violation_type, violation_data, scan_account, org_id)
                     
                     # Save this specific finding
                     finding_id = f"{scan_account}-{scanner}-{name}-{violation_type}"

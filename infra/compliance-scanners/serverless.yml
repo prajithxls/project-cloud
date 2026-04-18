@@ -4,8 +4,26 @@ provider:
   name: aws
   runtime: python3.12
   region: ap-south-1
+  ecr:
+    images:
+      ai-analyzer-image:
+        path: ./lambdas/ai_analyzer
+        buildArgs:
+          PLATFORM: linux/amd64
+      process-document-image:
+        path: ./lambdas/process_document
+        buildArgs:
+          PLATFORM: linux/amd64
+      security-assistant-image:
+        path: ./lambdas/security_assistant
+        buildArgs:
+          PLATFORM: linux/amd64
+          
   environment:
     FINDINGS_TABLE: Findings
+    ORGANISATIONS_TABLE: Organisations
+    USER_ORGS_TABLE: UserOrgs
+    DOCUMENTS_BUCKET: csc-ams-org-documents
   iamRoleStatements:
     - Effect: Allow
       Action:
@@ -97,14 +115,61 @@ provider:
         - sts:AssumeRole
       Resource: "arn:aws:iam::*:role/CrossAccountComplianceRole"
 
+    - Effect: Allow
+      Action: 
+            - s3:PutObject
+            - s3:GetObject
+            - s3:DeleteObject
+            - s3:ListBucket
+      Resource: 
+            - "arn:aws:s3:::csc-ams-org-documents/*"
+            - "arn:aws:s3:::csc-ams-org-documents"
+
+    - Effect: Allow
+      Action:
+            - dynamodb:PutItem
+            - dynamodb:GetItem
+            - dynamodb:UpdateItem
+            - dynamodb:Query
+      Resource: 
+            - "arn:aws:dynamodb:${aws:region}:*:table/Organisations"
+            - "arn:aws:dynamodb:${aws:region}:*:table/UserOrgs"
+
 functions:
 
+  processDocument:
+    # 🚨 REMOVE the 'handler' line and ADD the 'image' block 🚨
+    image:
+      
+      name: process-document-image
+      
+    timeout: 300     # PDF processing can take a few minutes
+    memorySize: 1024 # Give it 1GB of memory so PDF chunking is fast
+    environment:
+      DOCUMENTS_BUCKET:    csc-ams-org-documents
+      ORGANISATIONS_TABLE: Organisations
+      GOOGLE_API_KEY:      ${env:GOOGLE_API_KEY}
+      PINECONE_API_KEY:    ${env:PINECONE_API_KEY}
+      PINECONE_INDEX_NAME: aws-compliance-rules
+    events:
+      # S3 trigger: auto-process on upload
+      - s3:
+          bucket: csc-ams-org-documents
+          event: s3:ObjectCreated:*
+          rules:
+            - suffix: .pdf
+          existing: true
+      # Manual trigger via HTTP
+      - http:
+          path: documents/process
+          method: post
+          cors: true
   # ═══════════════════════════════════════════════════════════════
   # AI-POWERED SECURITY ANALYZER
   # ═══════════════════════════════════════════════════════════════
   aiBrain:
     image:
-      uri: 544446317130.dkr.ecr.ap-south-1.amazonaws.com/compliance-ai-analyzer:v13
+      name: ai-analyzer-image
     timeout: 60
     memorySize: 1024
     environment:
@@ -118,7 +183,7 @@ functions:
   # ═══════════════════════════════════════════════════════════════
   securityAssistant:
     image:
-      uri: 544446317130.dkr.ecr.ap-south-1.amazonaws.com/compliance-security-assistant:latest
+      name: security-assistant-image
     timeout: 50
     memorySize: 512
     environment:
@@ -333,6 +398,41 @@ functions:
             origin: '*'
             headers: [Content-Type, X-Amz-Date, Authorization, X-Api-Key, X-Amz-Security-Token]
             allowCredentials: false
+  orgManager:
+    handler: lambdas/org_manager/app.lambda_handler
+    timeout: 15
+    environment:
+      ORGANISATIONS_TABLE: Organisations
+      USER_ORGS_TABLE: UserOrgs
+    events:
+      - http:
+          path: orgs
+          method: post
+          cors: true
+      - http:
+          path: orgs/me
+          method: get
+          cors: true
+      - http:
+          path: orgs/{orgId}/members
+          method: post
+          cors: true
+      - http:
+          path: orgs/leave
+          method: delete
+          cors: true
+
+  uploadDocument:
+    handler: lambdas/upload_document/app.lambda_handler
+    timeout: 10
+    environment:
+      DOCUMENTS_BUCKET: csc-ams-org-documents
+    events:
+      - http:
+          path: documents/upload-url
+          method: post
+          cors: true
+
 
 resources:
   Resources:
@@ -362,3 +462,40 @@ resources:
                 KeyType: RANGE
             Projection:
               ProjectionType: ALL
+    
+    OrganisationsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: Organisations
+        AttributeDefinitions:
+          - AttributeName: orgId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: orgId
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+
+    # ─── 2. USER TO ORG MAPPING TABLE ───
+    UserOrgsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: UserOrgs
+        AttributeDefinitions:
+          - AttributeName: userId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+
+    # ─── 3. PDF UPLOAD BUCKET ───
+    OrgDocumentsBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: csc-ams-org-documents
+        CorsConfiguration:
+          CorsRules:
+            - AllowedHeaders: ["*"]
+              AllowedMethods: [GET, PUT, POST]
+              AllowedOrigins: ["*"]
+              MaxAge: 3600

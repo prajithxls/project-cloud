@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { sendChatMessage } from "../../services/api";
+// Add orgId to the props here 👇
+
 
 // ── Suggested prompts shown when chat is empty ────────────────────────────────
 const SUGGESTIONS = [
@@ -161,7 +163,7 @@ function SourcePill({ label }) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function SecurityAssistant({ findings, scannedAccountId, isOpen, onClose }) {
+export default function SecurityAssistant({ findings, scannedAccountId, orgId, isOpen, onClose }) {
   const [messages,  setMessages]  = useState([]);
   const [input,     setInput]     = useState("");
   const [loading,   setLoading]   = useState(false);
@@ -206,6 +208,7 @@ export default function SecurityAssistant({ findings, scannedAccountId, isOpen, 
         findings:            findings || [],
         conversationHistory: conversationHistory,
         accountId:           scannedAccountId || "",
+        orgId:               orgId || ""
       });
 
       const data = res.data;

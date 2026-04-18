@@ -3,7 +3,6 @@ import os
 import time
 from langchain_pinecone import PineconeVectorStore
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from langchain_openai import ChatOpenAI
 from langchain_groq import ChatGroq
 from langchain_core.prompts import PromptTemplate
 from pydantic import BaseModel, Field
@@ -28,7 +27,7 @@ embeddings = GoogleGenerativeAIEmbeddings(
 print("✓ Embeddings initialized")
 
 def lambda_handler(event, context):
-    print("!!! DEBUG: VERSION 14 - NATIVE STRUCTURED OUTPUT !!!")
+    print("!!! DEBUG: VERSION 15 - MULTI-TENANT RAG NATIVE STRUCTURED OUTPUT !!!")
     try:
         # Parse input payload
         if isinstance(event.get("body"), str):
@@ -41,52 +40,71 @@ def lambda_handler(event, context):
         resource_type = payload.get("resource_type", "S3 Bucket")
         resource_id   = payload.get("resource_id", "Unknown")
         raw_config    = payload.get("raw_config", {})
+        org_id        = payload.get("orgId", "").strip() # 🚨 Capture the Organization ID
         
-        print("Connecting to Pinecone...")
-        vectorstore = PineconeVectorStore.from_existing_index(
+        print(f"Connecting to Pinecone... (OrgID: {org_id or 'None'})")
+        search_query = f"AWS {resource_type} security compliance encryption access"
+        
+        # 1. Fetch Global Compliance Rules (Default Namespace)
+        global_store = PineconeVectorStore(
             index_name=os.environ["PINECONE_INDEX_NAME"],
             embedding=embeddings
         )
-        
-        search_query = f"AWS {resource_type} security compliance encryption access"
-        docs = vectorstore.similarity_search(search_query, k=3)
-        context_text = "\n\n---\n\n".join([d.page_content[:500] for d in docs])
+        global_docs = global_store.similarity_search(search_query, k=2)
+        global_context = "\n".join([f"[GLOBAL BEST PRACTICE]: {d.page_content[:400]}" for d in global_docs])
 
-        print("Initializing Grok...")
-        # 1. Initialize the Base LLM
+        # 2. Fetch Org-Specific Private Rules (If orgId exists)
+        org_context = ""
+        if org_id:
+            try:
+                org_store = PineconeVectorStore(
+                    index_name=os.environ["PINECONE_INDEX_NAME"],
+                    embedding=embeddings,
+                    namespace=org_id # 🚨 Data Isolation Magic
+                )
+                org_docs = org_store.similarity_search(search_query, k=3)
+                org_context = "\n".join([f"[ORG POLICY - {d.metadata.get('filename', 'Internal Doc')}]: {d.page_content[:400]}" for d in org_docs])
+            except Exception as e:
+                print(f"Warning: Org Pinecone query failed for {org_id}: {e}")
+
+        # Combine both contexts
+        combined_context = f"--- GLOBAL AWS RULES ---\n{global_context}\n\n--- ORG PRIVATE POLICIES ---\n{org_context if org_context else 'No custom org policies found.'}"
+
+        print("Initializing Groq...")
+        # 3. Initialize the Base LLM
         llm = ChatGroq(
-    model="llama-3.3-70b-versatile",
-    api_key=os.environ["GROQ_API_KEY"],
-    temperature=0.2,      # Slightly creative for natural conversation
-    max_tokens=1500,
-)
-
+            model="llama-3.3-70b-versatile",
+            api_key=os.environ["GROQ_API_KEY"],
+            temperature=0.1, # Dropped slightly to ensure strict schema adherence
+            max_tokens=1500,
+        )
         
-        # 2. FORCE the Native API Structured Output
-        # 2. FORCE the Native API Structured Output into JSON Mode
+        # FORCE the Native API Structured Output into JSON Mode
         structured_llm = llm.with_structured_output(SecurityReport, method="json_mode")
 
-        # 3. Cleaned up prompt (no more format instructions needed!)
-       # 3. Cleaned up prompt with Explicit JSON Schema
-      # 3. Cleaned up prompt with Escaped JSON Schema
+        # 4. Prompt specifically engineered for Multi-Tenant RAG (Strict Per-Violation Focus)
         prompt = PromptTemplate(
-            template="""AWS Security Auditor - analyze this resource.
+            template="""AWS Security Auditor - analyze this specific security violation.
             
-Resource: {resource_type}
-ARN: {resource_id}
-Config: {raw_config}
+Resource Type: {resource_type}
+Resource ARN: {resource_id}
+Detected Violation: {raw_config}
 
-Rules: {context}
+Rules & Policies: 
+{context}
 
-CRITICAL INSTRUCTION: 
-This resource may contain multiple security vulnerabilities. You must evaluate all of them, but you are strictly required to ONLY output the single highest severity risk (the absolute worst misconfiguration). Do not list multiple issues. 
+CRITICAL INSTRUCTIONS: 
+1. You are analyzing ONLY the violation specified in 'ViolationType' within the 'Detected Violation' block.
+2. IGNORE any other potential issues with the resource (e.g., if the ViolationType is about a dormant user, DO NOT evaluate whether the username is compliant).
+3. If the [ORG POLICY] mentions rules related to this SPECIFIC 'ViolationType', the ORG POLICY strictly overrides [GLOBAL BEST PRACTICE]. If it does not, use [GLOBAL BEST PRACTICE].
+4. The 'title' MUST be a clean, human-readable version of the exact 'ViolationType' provided (e.g., if ViolationType is 'IAM_DormantUser', title must be 'IAM Dormant User'). Do NOT invent a title for a different issue.
 
 You MUST output your response in valid JSON format using EXACTLY these keys and nothing else:
 {{
   "severity": "CRITICAL, HIGH, MEDIUM, or LOW",
   "riskScore": "0.0 to 10.0",
-  "title": "Short title of the issue",
-  "remediation": "Detailed fix steps",
+  "title": "Human readable version of the ViolationType",
+  "remediation": "Detailed fix steps based on the policy",
   "cliCommands": ["aws ..."],
   "complianceFramework": ["CIS-AWS-..."]
 }}""",
@@ -105,7 +123,7 @@ You MUST output your response in valid JSON format using EXACTLY these keys and 
                 "resource_type": resource_type,
                 "resource_id": resource_id,
                 "raw_config": json.dumps(raw_config, default=str)[:1000],
-                "context": context_text
+                "context": combined_context
             })
             
             # Convert Pydantic object safely to a dictionary
@@ -121,6 +139,7 @@ You MUST output your response in valid JSON format using EXACTLY these keys and 
                 "riskScore": "8.0",
                 "title": f"{resource_type} configuration issues detected",
                 "remediation": f"Manual review required. LLM Error: {str(llm_error)}",
+                "cliCommands": [],
                 "complianceFramework": ["AWS-Security-Review"]
             }
 
@@ -138,6 +157,7 @@ You MUST output your response in valid JSON format using EXACTLY these keys and 
                 "riskScore": "8.0",
                 "title": "AI Analysis Failed",
                 "remediation": f"Fatal Error: {str(e)}",
+                "cliCommands": [],
                 "complianceFramework": ["Manual-Review"]
             })
         }

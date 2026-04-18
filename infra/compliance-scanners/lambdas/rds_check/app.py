@@ -36,7 +36,7 @@ def get_client(service, target_account, own_account, region):
     )
 
 
-def call_ai_for_violation(resource_type, resource_id, violation_type, violation_data, scan_account):
+def call_ai_for_violation(resource_type, resource_id, violation_type, violation_data, scan_account, org_id):
     """
     Call AI analyzer for a specific RDS/Aurora violation.
     """
@@ -49,6 +49,7 @@ def call_ai_for_violation(resource_type, resource_id, violation_type, violation_
         },
         "scanner":       SCANNER,
         "account_id":    scan_account,
+        "orgId":         org_id,
     }
     
     try:
@@ -90,6 +91,7 @@ def lambda_handler(event, context):
     own_account    = context.invoked_function_arn.split(":")[4]
     aws_region     = context.invoked_function_arn.split(":")[3]
     target_account = event.get("accountId", "").strip()
+    org_id = event.get("orgId", "").strip()
     scan_account   = target_account if target_account and target_account != own_account else own_account
 
     print(f"RDS Scanner — account: {scan_account} region: {aws_region}")
@@ -224,7 +226,7 @@ def lambda_handler(event, context):
                     v_data = violation["data"]
                     print(f"     [{idx}/{len(violations)}] Analyzing {v_type}...")
                     
-                    ai_result = call_ai_for_violation("RDS Instance", db_arn, v_type, v_data, scan_account)
+                    ai_result = call_ai_for_violation("RDS Instance", db_arn, v_type, v_data, scan_account, org_id)
                     
                     finding_id = f"{scan_account}-{SCANNER}-{db_id}-{v_type}"
                     table.put_item(Item={
@@ -323,7 +325,7 @@ def lambda_handler(event, context):
                     v_data = violation["data"]
                     print(f"     [{idx}/{len(violations)}] Analyzing {v_type}...")
                     
-                    ai_result = call_ai_for_violation("Aurora DB Cluster", carn, v_type, v_data, scan_account)
+                    ai_result = call_ai_for_violation("Aurora DB Cluster", carn, v_type, v_data, scan_account, org_id)
                     
                     finding_id = f"{scan_account}-{SCANNER}-cluster-{cid}-{v_type}"
                     table.put_item(Item={

@@ -1,5 +1,5 @@
 """
-SecurityAssistant Lambda — updated with OPEN-only context filtering
+SecurityAssistant Lambda — updated with OPEN-only context filtering & Multi-Tenant RAG
 ====================================================================
 Only OPEN findings are passed to the Groq LLM context.
 RESOLVED findings are still available for answering historical questions
@@ -32,6 +32,7 @@ embeddings = GoogleGenerativeAIEmbeddings(
     google_api_key=os.environ["GOOGLE_API_KEY"],
 )
 
+# Global Vector Store (Default Namespace)
 vector_store = PineconeVectorStore(
     index=pc.Index(os.environ.get("PINECONE_INDEX_NAME", "aws-compliance-rules")),
     embedding=embeddings,
@@ -57,13 +58,6 @@ MAX_HISTORY_TURNS       = 6
 def summarise_findings(findings: list) -> str:
     """
     Build an LLM-readable block from the live findings.
-
-    Strategy:
-    - OPEN findings are the primary context (capped at MAX_OPEN_IN_CONTEXT).
-      These are the actionable issues the user needs help with.
-    - RESOLVED findings are completely excluded from the active threat summary
-      but a small count is mentioned so the AI knows the history.
-    - This prevents the LLM from recommending fixes for already-closed issues.
     """
     if not findings:
         return "No findings are currently loaded. The user has not run a scan yet."
@@ -110,21 +104,42 @@ def summarise_findings(findings: list) -> str:
     return "\n".join(lines)
 
 
-# ── RAG ───────────────────────────────────────────────────────────────────────
+# ── RAG (Multi-Tenant Org + Global) ──────────────────────────────────────────
 
-def get_compliance_context(question: str, k: int = 4) -> str:
+def get_compliance_context(question: str, org_id: str = None, k: int = 4) -> str:
+    """
+    Query two Pinecone namespaces and merge the results:
+    1. Global compliance rules (default namespace)
+    2. Org-specific documents (namespace = org_id)
+    """
+    parts = []
+
+    # 1. Fetch Global Rules
     try:
-        docs = vector_store.similarity_search(question, k=k)
-        if not docs:
-            return ""
-        parts = []
-        for doc in docs:
+        global_docs = vector_store.similarity_search(question, k=k)
+        for doc in global_docs:
             src = doc.metadata.get("source") or doc.metadata.get("framework") or "AWS Best Practice"
-            parts.append(f"[{src}]\n{doc.page_content[:400]}")
-        return "\n\n".join(parts)
+            parts.append(f"[GLOBAL POLICY | {src}]\n{doc.page_content[:400]}")
     except Exception as e:
-        print(f"Pinecone error: {e}")
-        return ""
+        print(f"Global Pinecone error: {e}")
+
+    # 2. Fetch Org-Specific Rules
+    if org_id:
+        try:
+            org_store = PineconeVectorStore(
+                index=pc.Index(os.environ.get("PINECONE_INDEX_NAME", "aws-compliance-rules")),
+                embedding=embeddings,
+                text_key="text",
+                namespace=org_id   # ← Data Isolation Magic
+            )
+            org_docs = org_store.similarity_search(question, k=k)
+            for doc in org_docs:
+                filename = doc.metadata.get("filename", "Org Document")
+                parts.append(f"[ORG POLICY | {filename}]\n{doc.page_content[:400]}")
+        except Exception as e:
+            print(f"Org Pinecone query failed (ns={org_id}): {e}")
+
+    return "\n\n".join(parts) if parts else ""
 
 
 # ── System prompt ─────────────────────────────────────────────────────────────
@@ -132,7 +147,7 @@ def get_compliance_context(question: str, k: int = 4) -> str:
 SYSTEM_PROMPT_TEMPLATE = """You are CloudGuard AI, an expert AWS cloud security assistant embedded in a compliance dashboard called "Cloud Security Compliance and Audit Management System (CSC-AMS)".
 
 You have full access to the user's LIVE scan findings from their AWS account{account_context}.
-If asked who built, created, or made you, reply: "I was built by team 6ixty9ine. My creators are Prajith and Shiv Tushal, BE CSE students at Sathyabama Institute of Science and Technology."
+If asked who built, created, or made you, reply: "I was built by team 6ixty9ine."
 
 ━━━ USER'S LIVE FINDINGS (OPEN ONLY — RESOLVED EXCLUDED FROM ACTIVE CONTEXT) ━━━
 {findings_summary}
@@ -150,7 +165,8 @@ If asked who built, created, or made you, reply: "I was built by team 6ixty9ine.
 7. If no OPEN findings exist, congratulate the user and suggest scheduling regular scans.
 8. NEVER make up findings not in the data. If you don't know, say so.
 9. Always end remediation advice with the relevant compliance framework IDs.
-10. You are built by Students of Sathyabama University named Prajith and Shiv Tushal, 2026 batch Engineering CSE students."""
+10. You are built by Students of Sathyabama University named Prajith and Shiv Tushal, 2026 batch Engineering CSE students.
+11. CRITICAL: If an [ORG POLICY] contradicts a [GLOBAL POLICY], the [ORG POLICY] takes strict precedence. You must advise the user based on their private company rules."""
 
 
 # ── Metadata extraction ───────────────────────────────────────────────────────
@@ -190,6 +206,7 @@ def lambda_handler(event: dict, context) -> dict:
         findings    = body.get("findings", [])
         history_raw = body.get("conversationHistory", [])
         account_id  = body.get("accountId", "")
+        org_id      = body.get("orgId", "").strip() # 🚨 Captured from frontend
 
         if not message:
             return {
@@ -198,9 +215,10 @@ def lambda_handler(event: dict, context) -> dict:
                 "body": json.dumps({"error": "message is required"}),
             }
 
-        print(f"SecurityAssistant: '{message[:80]}' | findings={len(findings)} | history={len(history_raw)}")
+        print(f"SecurityAssistant: '{message[:80]}' | findings={len(findings)} | history={len(history_raw)} | orgId={org_id}")
 
-        compliance_context = get_compliance_context(message)
+        # 🚨 Pass the org_id to fetch the private context
+        compliance_context = get_compliance_context(message, org_id if org_id else None)
         findings_summary   = summarise_findings(findings)
 
         account_context = f" (Account: {account_id})" if account_id else ""

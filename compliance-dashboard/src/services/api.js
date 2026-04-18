@@ -23,10 +23,13 @@ api.interceptors.response.use(
   }
 );
 
-export const runScan = (accountId, scanners = []) => {
+export const runScan = (accountId, scanners = [], orgId) => {
   let url = `/scan?accountId=${accountId}`;
   if (scanners && scanners.length > 0) {
     url += `&scanners=${scanners.join(",")}`;
+  }
+  if (orgId) {
+    url += `&orgId=${orgId}`;
   }
   return api.get(url);
 };
